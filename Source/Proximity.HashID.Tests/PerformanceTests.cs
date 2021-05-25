@@ -4,55 +4,59 @@ using NUnit.Framework;
 
 namespace Proximity.HashID.Tests
 {
-    [TestFixture]
-    public class PerformanceTests
-    {
-        [Test]
-        public void EncodeSingle()
-        {
-            using var Service = new HashIDService();
+	[TestFixture]
+	public class PerformanceTests
+	{
+		[Test]
+		public void EncodeSingle()
+		{
+			using var Service = new HashIDService();
 
-            var Timer = new Stopwatch();
+			Service.Encode(1); // Pre-JIT
 
-            Timer.Start();
-            Timer.Stop();
-            Timer.Reset();
+			var Timer = new Stopwatch();
 
-            var Before = GC.GetAllocatedBytesForCurrentThread();
+			Timer.Start();
+			Timer.Stop();
+			Timer.Reset();
 
-            Timer.Start();
+			var Before = GC.GetAllocatedBytesForCurrentThread();
 
-            for (var Counter = 1; Counter < 100001; Counter++)
-            {
-                Service.Encode(Counter);
-            }
+			Timer.Start();
 
-            Timer.Stop();
+			for (var Counter = 1; Counter < 100001; Counter++)
+			{
+				Service.Encode(Counter);
+			}
 
-            var After = GC.GetAllocatedBytesForCurrentThread();
+			Timer.Stop();
 
-            Console.WriteLine($"10 000 encodes: {Timer.ElapsedMilliseconds}ms, {After - Before}b");
-        }
+			var After = GC.GetAllocatedBytesForCurrentThread();
 
-        [Test]
-        public void EncodeZeroAlloc()
-        {
-            using var Service = new HashIDService();
+			Console.WriteLine($"10 000 encodes: {Timer.ElapsedMilliseconds}ms, {After - Before}b");
+		}
 
-            var InBuffer = new long[1];
-            var OutBuffer = new char[1024];
+		[Test]
+		public void EncodeZeroAlloc()
+		{
+			using var Service = new HashIDService();
 
-            var Before = GC.GetAllocatedBytesForCurrentThread();
+			var InBuffer = new long[1];
+			var OutBuffer = new char[1024];
 
-            for (var Counter = 1; Counter < 100001; Counter++)
-            {
-                InBuffer[0] = Counter;
-                Service.TryEncode(InBuffer, OutBuffer, out _);
-            }
+			Service.TryEncode(InBuffer, OutBuffer, out _); // Pre-JIT
 
-            var After = GC.GetAllocatedBytesForCurrentThread();
+			var Before = GC.GetAllocatedBytesForCurrentThread();
 
-            Console.WriteLine($"10 000 encodes: {After - Before}b");
-        }
-    }
+			for (var Counter = 1; Counter < 100001; Counter++)
+			{
+				InBuffer[0] = Counter;
+				Service.TryEncode(InBuffer, OutBuffer, out _);
+			}
+
+			var After = GC.GetAllocatedBytesForCurrentThread();
+
+			Console.WriteLine($"10 000 encodes: {After - Before}b");
+		}
+	}
 }

@@ -3,460 +3,500 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace Proximity.HashID
 {
-    public partial class HashIDService
-    {
-        public string Encode(int number)
-        {
-            Span<long> Numbers = stackalloc long[1];
+	public partial class HashIDService
+	{
+		public string Encode(int number)
+		{
+			Span<ulong> Numbers = stackalloc ulong[] { unchecked((uint)number) };
 
-            Numbers[0] = number;
+			return Encode(Numbers);
+		}
 
-            return Encode(Numbers);
-        }
+		public string Encode(uint number)
+		{
+			Span<ulong> Numbers = stackalloc ulong[] { number };
 
-        public string Encode(int[] numbers) => Encode(numbers.AsSpan());
+			return Encode(Numbers);
+		}
 
-        public string Encode(ReadOnlySpan<int> numbers)
-        {
-            // If there's no numbers, we don't write anything
-            if (numbers.IsEmpty)
-                return string.Empty;
+		public string Encode(ReadOnlySpan<int> numbers) => Encode(MemoryMarshal.Cast<int, uint>(numbers));
 
-            Span<long> Numbers = stackalloc long[numbers.Length];
+		public string Encode(ReadOnlySpan<uint> numbers)
+		{
+			// If there's no numbers, we don't write anything
+			if (numbers.IsEmpty)
+				return string.Empty;
 
-            for (var Index = 0; Index < numbers.Length; Index++)
-                Numbers[Index] = numbers[Index];
+			Span<ulong> Numbers = stackalloc ulong[numbers.Length];
 
-            var MaximumLength = MeasureEncode(Numbers);
+			for (var Index = 0; Index < numbers.Length; Index++)
+				Numbers[Index] = numbers[Index];
 
-            Span<char> Output = stackalloc char[MaximumLength];
+			var MaximumLength = MeasureEncode(Numbers);
 
-            if (!InternalEncode(Numbers, Output, out var ActualLength))
-                throw new InvalidOperationException("Did not measure correctly");
+			Span<char> Output = stackalloc char[MaximumLength];
 
-            return Output.Slice(0, ActualLength).ToString();
-        }
+			if (!InternalEncode(Numbers, Output, out var ActualLength))
+				throw new InvalidOperationException("Did not measure correctly");
 
-        public string Encode(long number)
-        {
-            Span<long> Numbers = stackalloc long[1];
-            
-            Numbers[0] = number;
+			return Output.Slice(0, ActualLength).ToString();
+		}
 
-            return Encode(Numbers);
-        }
+		public string Encode(long number)
+		{
+			Span<ulong> Numbers = stackalloc ulong[] { unchecked((ulong)number) };
 
-        public string Encode(params long[] numbers) => Encode(numbers.AsSpan());
+			return Encode(Numbers);
+		}
 
-        public string Encode(ReadOnlySpan<long> numbers)
-        {
-            // If there's no numbers, we don't write anything
-            if (numbers.IsEmpty)
-                return string.Empty;
+		public string Encode(ulong number)
+		{
+			Span<ulong> Numbers = stackalloc ulong[] { number };
 
-            var MaximumLength = MeasureEncode(numbers);
+			return Encode(Numbers);
+		}
 
-            Span<char> Output = stackalloc char[MaximumLength];
+		public string Encode(params long[] numbers) => Encode(numbers.AsSpan());
 
-            if (!InternalEncode(numbers, Output, out var ActualLength))
-                throw new InvalidOperationException("Did not measure correctly");
+		public string Encode(ReadOnlySpan<long> numbers) => Encode(MemoryMarshal.Cast<long, ulong>(numbers));
 
-            return Output.Slice(0, ActualLength).ToString();
-        }
+		public string Encode(ReadOnlySpan<ulong> numbers)
+		{
+			// If there's no numbers, we don't write anything
+			if (numbers.IsEmpty)
+				return string.Empty;
 
-        public string Encode(ReadOnlySpan<byte> bytes)
-        {
-            // If there's no bytes, we don't write anything
-            if (bytes.IsEmpty)
-                return string.Empty;
+			var MaximumLength = MeasureEncode(numbers);
 
-            var MaximumLength = MeasureEncode((bytes.Length / 8) + 1);
+			Span<char> Output = stackalloc char[MaximumLength];
 
-            Span<char> Output = stackalloc char[MaximumLength];
+			if (!InternalEncode(numbers, Output, out var ActualLength))
+				throw new InvalidOperationException("Did not measure correctly");
 
-            if (!TryEncode(bytes, Output, out var ActualLength))
-                throw new InvalidOperationException("Did not measure correctly");
+			return Output.Slice(0, ActualLength).ToString();
+		}
 
-            return Output.Slice(0, ActualLength).ToString();
-        }
+		public string Encode(ReadOnlySpan<byte> bytes)
+		{
+			// If there's no bytes, we don't write anything
+			if (bytes.IsEmpty)
+				return string.Empty;
 
-        public string EncodeHex(string hexString) => EncodeHex(hexString.AsSpan());
+			var MaximumLength = MeasureEncode((bytes.Length / 8) + 1);
 
-        public string EncodeHex(ReadOnlySpan<char> hexString)
-        {
-            if (hexString.IsEmpty)
-                return string.Empty;
+			Span<char> Output = stackalloc char[MaximumLength];
 
-            var MaximumLength = MeasureEncodeHex(hexString);
+			if (!TryEncode(bytes, Output, out var ActualLength))
+				throw new InvalidOperationException("Did not measure correctly");
 
-            Span<char> Output = stackalloc char[MaximumLength];
+			return Output.Slice(0, ActualLength).ToString();
+		}
 
-            if (!TryEncodeHex(hexString, Output, out var ActualLength))
-                return string.Empty;
+		public string EncodeHex(string hexString) => EncodeHex(hexString.AsSpan());
 
-            return Output.Slice(0, ActualLength).ToString();
-        }
+		public string EncodeHex(ReadOnlySpan<char> hexString)
+		{
+			if (hexString.IsEmpty)
+				return string.Empty;
 
-        public int MeasureEncode(int numbers)
-        {
-            if (numbers < 0)
-                throw new ArgumentOutOfRangeException(nameof(numbers));
+			var MaximumLength = MeasureEncodeHex(hexString);
 
-            if (numbers == 0)
-                return 0;
+			Span<char> Output = stackalloc char[MaximumLength];
 
-            var Length = 1; // Lottery
-            var AlphabetLength = numbers;
+			if (!TryEncodeHex(hexString, Output, out var ActualLength))
+				return string.Empty;
 
-            // The maximum size of each value
-            Length += maximumSegmentLength * numbers;
+			return Output.Slice(0, ActualLength).ToString();
+		}
 
-            // Number of separator characters
-            Length += numbers - 1;
+		public int MeasureEncode(int numbers)
+		{
+			if (numbers < 0)
+				throw new ArgumentOutOfRangeException(nameof(numbers));
 
-            // Minimum hash length
-            return Math.Max(Length, minimumHashLength);
+			if (numbers == 0)
+				return 0;
 
-        }
+			var Length = 1; // Lottery
 
-        public int MeasureEncode(int[] numbers) => MeasureEncode(numbers.Length);
+			// The maximum size of each value
+			Length += maximumSegmentLength * numbers;
 
-        public int MeasureEncode(long[] numbers) => MeasureEncode(numbers.Length);
+			// Number of separator characters
+			Length += numbers - 1;
 
-        public int MeasureEncode(ReadOnlySpan<int> numbers) => MeasureEncode(numbers.Length);
+			// Minimum hash length
+			return Math.Max(Length, minimumHashLength);
 
-        public int MeasureEncode(ReadOnlySpan<long> numbers) => MeasureEncode(numbers.Length);
+		}
 
-        public int MeasureEncodeHex(int hexStringLength)
-        {
-            if (hexStringLength < 0)
-                throw new ArgumentOutOfRangeException(nameof(hexStringLength));
+		public int MeasureEncode(int[] numbers) => MeasureEncode(numbers.Length);
 
-            if (hexStringLength == 0)
-                return 0;
+		public int MeasureEncode(uint[] numbers) => MeasureEncode(numbers.Length);
 
-            var Length = 1; // Lottery
-            var AlphabetLength = alphabet.Length;
-            var HexBlocks = (hexStringLength / 12) + 1;
+		public int MeasureEncode(long[] numbers) => MeasureEncode(numbers.Length);
 
-            // The maximum size of each value
-            Length += maximumHexSegmentLength * HexBlocks;
+		public int MeasureEncode(ulong[] numbers) => MeasureEncode(numbers.Length);
 
-            // Number of separator characters
-            Length += HexBlocks - 1;
+		public int MeasureEncode(ReadOnlySpan<int> numbers) => MeasureEncode(numbers.Length);
 
-            // Minimum hash length
-            return Math.Max(Length, minimumHashLength);
-        }
+		public int MeasureEncode(ReadOnlySpan<uint> numbers) => MeasureEncode(numbers.Length);
 
-        public int MeasureEncodeHex(string hexString) => MeasureEncodeHex(hexString.Length);
+		public int MeasureEncode(ReadOnlySpan<long> numbers) => MeasureEncode(numbers.Length);
 
-        public int MeasureEncodeHex(ReadOnlySpan<char> hexString) => MeasureEncodeHex(hexString.Length);
+		public int MeasureEncode(ReadOnlySpan<ulong> numbers) => MeasureEncode(numbers.Length);
 
-        public bool TryEncodeHex(string hexString, Span<char> hash, out int charsWritten) => TryEncodeHex(hexString.AsSpan(), hash, out charsWritten);
+		public int MeasureEncodeHex(int hexStringLength)
+		{
+			if (hexStringLength < 0)
+				throw new ArgumentOutOfRangeException(nameof(hexStringLength));
 
-        public bool TryEncodeHex(ReadOnlySpan<char> hexString, Span<char> hash, out int charsWritten)
-        {
-            if (hexString.IsEmpty)
-            {
-                charsWritten = 0;
+			if (hexStringLength == 0)
+				return 0;
 
-                return true;
-            }
+			var Length = 1; // Lottery
+			var HexBlocks = (hexStringLength / 12) + 1;
 
-            var HexBlocks = (hexString.Length / 12) + 1;
-            var Index = 0;
+			// The maximum size of each value
+			Length += maximumHexSegmentLength * HexBlocks;
 
-            Span<long> Values = stackalloc long[HexBlocks];
+			// Number of separator characters
+			Length += HexBlocks - 1;
 
-            do
-            {
-                // We only use 12 out of the possible 15 (+1 for padding) hex characters that fit in a long
-                var BlockSize = Math.Min(hexString.Length, 12);
+			// Minimum hash length
+			return Math.Max(Length, minimumHashLength);
+		}
+
+		public int MeasureEncodeHex(string hexString) => MeasureEncodeHex(hexString.Length);
+
+		public int MeasureEncodeHex(ReadOnlySpan<char> hexString) => MeasureEncodeHex(hexString.Length);
+
+		public bool TryEncodeHex(string hexString, Span<char> hash, out int charsWritten) => TryEncodeHex(hexString.AsSpan(), hash, out charsWritten);
+
+		public bool TryEncodeHex(ReadOnlySpan<char> hexString, Span<char> hash, out int charsWritten)
+		{
+			if (hexString.IsEmpty)
+			{
+				charsWritten = 0;
+
+				return true;
+			}
+
+			var HexBlocks = ((hexString.Length - 1) / 12) + 1;
+			var Index = 0;
+
+			Span<ulong> Values = stackalloc ulong[HexBlocks];
+
+			do
+			{
+				// We only use 12 out of the possible 15 (+1 for padding) hex characters that fit in a long
+				var BlockSize = Math.Min(hexString.Length, 12);
 
 #if NETSTANDARD2_0
-                // TODO: Write our own span-based hex number parser
-                if (!long.TryParse(hexString.Slice(0, BlockSize).ToString(), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var BlockValue))
+				// TODO: Write our own span-based hex number parser
+				if (!ulong.TryParse(hexString.Slice(0, BlockSize).ToString(), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var BlockValue))
 #else
-                if (!long.TryParse(hexString.Slice(0, BlockSize), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var BlockValue))
+				if (!ulong.TryParse(hexString.Slice(0, BlockSize), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var BlockValue))
 #endif
-                {
-                    charsWritten = 0;
+				{
+					charsWritten = 0;
 
-                    return false;
-                }
+					return false;
+				}
 
-                // Hex values need to be prepended with 1. Since we're parsing in-place, we need to do a little bit-shifting to stick the 1 at the correct spot
-                Values[Index++] = BlockValue | (1L << (4 * BlockSize));
+				// Hex values need to be prepended with 1. Since we're parsing in-place, we need to do a little bit-shifting to stick the 1 at the correct spot
+				Values[Index++] = BlockValue | (1UL << (4 * BlockSize));
 
-                // Are there any more hex characters to include?
-                hexString = hexString.Slice(BlockSize);
-            }
-            while (!hexString.IsEmpty);
+				// Are there any more hex characters to include?
+				hexString = hexString.Slice(BlockSize);
+			}
+			while (!hexString.IsEmpty);
 
-            return InternalEncode(Values, hash, out charsWritten);
-        }
+			return InternalEncode(Values, hash, out charsWritten);
+		}
 
-        public bool TryEncode(byte[] bytes, Span<char> hash, out int charsWritten) => TryEncode(bytes.AsSpan(), hash, out charsWritten);
+		public bool TryEncode(byte[] bytes, Span<char> hash, out int charsWritten) => TryEncode(bytes.AsSpan(), hash, out charsWritten);
 
-        public bool TryEncode(ReadOnlySpan<byte> bytes, Span<char> hash, out int charsWritten)
-        {
-            if (bytes.IsEmpty)
-            {
-                charsWritten = 0;
+		public bool TryEncode(ReadOnlySpan<byte> bytes, Span<char> hash, out int charsWritten)
+		{
+			if (bytes.IsEmpty)
+			{
+				charsWritten = 0;
 
-                return true;
-            }
+				return true;
+			}
 
-            var HexBlocks = (bytes.Length / 8) + 1;
-            var Index = 0;
+			var HexBlocks = (bytes.Length / 8) + 1;
+			var Index = 0;
 
-            Span<long> Values = stackalloc long[HexBlocks];
-            Span<byte> Buffer = stackalloc byte[8];
+			Span<ulong> Values = stackalloc ulong[HexBlocks];
+			Span<byte> Buffer = stackalloc byte[8];
 
-            do
-            {
-                // We use all 8 bytes that fit in a long
-                var BlockSize = Math.Min(bytes.Length, 8);
+			while (bytes.Length > 8)
+			{
+				// We use all 8 bytes that fit in a long
+				Values[Index++] = BinaryPrimitives.ReadUInt64BigEndian(bytes.Slice(0, 8));
 
-                if (BlockSize < 8)
-                {
-                    bytes.Slice(0, BlockSize).CopyTo(Buffer);
+				bytes = bytes.Slice(8);
+			}
 
-                    // The final block should have its last byte set to 1, so we can tell if it's all zeros
-                    Buffer[BlockSize] = 1;
+			// Read in the final number
+			var BlockSize = bytes.Length;
+			var BlockLead = 8 - BlockSize;
 
-                    if (BlockSize < 7)
-                        Buffer.Slice(BlockSize + 1).Clear();
+			bytes.Slice(0, BlockSize).CopyTo(Buffer.Slice(BlockLead));
 
-                    Values[Index++] = BinaryPrimitives.ReadInt64LittleEndian(Buffer);
-                }
-                else
-                {
-                    Values[Index++] = BinaryPrimitives.ReadInt64LittleEndian(bytes.Slice(0, 8));
-                }
+			if (BlockLead > 0)
+				Buffer.Slice(0, BlockLead).Clear();
 
-                // Are there any more bytes to include?
-                bytes = bytes.Slice(BlockSize);
-            }
-            while (!bytes.IsEmpty);
+			var FinalValue = BinaryPrimitives.ReadUInt64BigEndian(Buffer);
 
-            if (Index != HexBlocks)
-            {
-                // We're a multiple of eight, so we have a final number set to one.
-                Values[Index] = 1;
-            }
+			// Find the highest bit set in the value
+#if NETSTANDARD
+			var LeadingBits = LeadingZeroCount((ulong)FinalValue);
+#else
+			var LeadingBits = System.Numerics.BitOperations.LeadingZeroCount((ulong)FinalValue);
+#endif
 
-            return InternalEncode(Values, hash, out charsWritten);
-        }
+			if (LeadingBits == 0)
+			{
+				Values[Index++] = FinalValue;
 
-        public bool TryEncode(long[] numbers, out string hash) => TryEncode(numbers.AsSpan(), out hash);
+				// We're a multiple of eight with the high bit set, so we have a final number set to one.
+				Values[Index++] = 1;
+			}
+			else
+			{
+				// We only want to set the top bit in the last byte
+				FinalValue |= 1UL << Math.Max((BlockSize - 1) * 8 + 1, 64 - LeadingBits);
 
-        public bool TryEncode(ReadOnlySpan<long> numbers, out string hash)
-        {
-            if (numbers.IsEmpty)
-            {
-                hash = string.Empty;
+				Values[Index++] = FinalValue;
+			}
 
-                return true;
-            }
+			return InternalEncode(Values.Slice(0, Index), hash, out charsWritten);
+		}
 
-            var MaximumLength = MeasureEncode(numbers);
+		public bool TryEncode(long[] numbers, out string hash) => TryEncode(MemoryMarshal.Cast<long, ulong>(numbers.AsSpan()), out hash);
 
-            Span<char> Output = stackalloc char[MaximumLength];
+		public bool TryEncode(ulong[] numbers, out string hash) => TryEncode(numbers.AsSpan(), out hash);
 
-            if (!InternalEncode(numbers, Output, out var ActualLength))
-                throw new InvalidOperationException("Did not measure correctly");
+		public bool TryEncode(ReadOnlySpan<long> numbers, out string hash) => TryEncode(MemoryMarshal.Cast<long, ulong>(numbers), out hash);
 
-            hash = Output.Slice(0, ActualLength).ToString();
+		public bool TryEncode(ReadOnlySpan<ulong> numbers, out string hash)
+		{
+			if (numbers.IsEmpty)
+			{
+				hash = string.Empty;
 
-            return true;
-        }
+				return true;
+			}
 
-        public bool TryEncode(int number, Span<char> result, out int charsWritten)
-        {
-            Span<long> Numbers = stackalloc long[1];
+			var MaximumLength = MeasureEncode(numbers);
 
-            Numbers[0] = number;
+			Span<char> Output = stackalloc char[MaximumLength];
 
-            return InternalEncode(Numbers, result, out charsWritten);
-        }
+			if (!InternalEncode(numbers, Output, out var ActualLength))
+				throw new InvalidOperationException("Did not measure correctly");
 
-        public bool TryEncode(long number, Span<char> result, out int charsWritten)
-        {
-            Span<long> Numbers = stackalloc long[1];
+			hash = Output.Slice(0, ActualLength).ToString();
 
-            Numbers[0] = number;
+			return true;
+		}
 
-            return InternalEncode(Numbers, result, out charsWritten);
-        }
+		public bool TryEncode(int number, Span<char> result, out int charsWritten) => TryEncode(unchecked((ulong)(uint)number), result, out charsWritten);
 
-        public bool TryEncode(ReadOnlySpan<long> numbers, Span<char> result, out int charsWritten)
-        {
-            // If there's no numbers, we don't write anything
-            if (numbers.IsEmpty)
-            {
-                charsWritten = 0;
+		public bool TryEncode(uint number, Span<char> result, out int charsWritten) => TryEncode((ulong)number, result, out charsWritten);
 
-                return true;
-            }
+		public bool TryEncode(long number, Span<char> result, out int charsWritten) => TryEncode(unchecked((ulong)number), result, out charsWritten);
 
-            return InternalEncode(numbers, result, out charsWritten);
-        }
+		public bool TryEncode(ulong number, Span<char> result, out int charsWritten)
+		{
+			Span<ulong> Numbers = stackalloc ulong[1];
 
-        private bool InternalEncode(ReadOnlySpan<long> numbers, Span<char> result, out int charsWritten)
-        {
-            charsWritten = 0;
+			Numbers[0] = number;
 
-            // Ensure there's space for the lottery and minimum size
-            if (result.IsEmpty || result.Length < minimumHashLength)
-                return false;
-
-            var ResultLength = 0;
-
-            // Copy the alphabet to a buffer we can shuffle around
-            Span<char> Alphabet = stackalloc char[alphabet.Length];
-            alphabet.Span.CopyTo(Alphabet);
-
-            // Generate a hash to use for the rest of the calculation
-            var NumbersHash = 0L;
-
-            for (var Index = 0; Index < numbers.Length; Index++)
-                NumbersHash += numbers[Index] % (Index + 100);
-
-            var Lottery = Alphabet[(int)(NumbersHash % Alphabet.Length)];
-            result[ResultLength++] = Lottery;
-
-            // Generate the buffer we use to shuffle the alphabet with
-            // Each iteration, we replace the end of it with the current alphabet
-            // We only need it to be the same length as the Alphabet though
-            Span<char> Buffer = stackalloc char[Alphabet.Length];
-            Buffer[0] = Lottery;
-            salt.Span.Slice(0, Math.Min(Alphabet.Length - 1, salt.Length)).CopyTo(Buffer.Slice(1));
-
-            for (var Index = 0; Index < numbers.Length; Index++)
-            {
-                var Number = numbers[Index];
-
-                // Fill the remainder of the shuffle buffer with the current alphabet
-                if (salt.Length + 1 < Alphabet.Length)
-                    Alphabet.Slice(0, Alphabet.Length - salt.Length - 1).CopyTo(Buffer.Slice(salt.Length + 1));
-
-                ConsistentShuffle(Alphabet, Buffer);
-
-                var StartOffset = ResultLength;
-
-                if (!Hash(result, ref ResultLength, Number, Alphabet))
-                    return false;
-
-                // If we're not the last item, add a separator
-                if (Index + 1 < numbers.Length)
-                {
-                    if (result.Length == ResultLength)
-                        return false;
-
-                    var SeparatorIndex = (int)(Number % ((int)result[StartOffset] + Index)) % separators.Length;
-
-                    result[ResultLength++] = separators.Span[SeparatorIndex];
-                }
-            }
-            
-            if (ResultLength < minimumHashLength)
-            {
-                if (result.Length == ResultLength)
-                    return false;
-
-                var GuardIndex = (int)(NumbersHash + (int)result[0]) % guards.Length;
-                var Guard = guards.Span[GuardIndex];
-
-                // Move the result up, since we need to prepend a guard value
-                result.Slice(0, ResultLength).CopyTo(result.Slice(1));
-                result[0] = Guard;
-                ResultLength++;
-
-                if (ResultLength < minimumHashLength)
-                {
-                    if (result.Length == ResultLength)
-                        return false;
-
-                    GuardIndex = (int)(NumbersHash + (int)result[2]) % guards.Length;
-                    Guard = guards.Span[GuardIndex];
-
-                    result[ResultLength++] = Guard;
-                }
-            }
-
-            var HalfLength = Alphabet.Length / 2;
-
-            // No need for bounds checks here, since we know we have Minimum Hash Length in the output buffer
-            while (ResultLength < minimumHashLength)
-            {
-                // We're doing an in-place shuffle, so we need to copy the Alphabet first
-                Alphabet.CopyTo(Buffer);
-                ConsistentShuffle(Alphabet, Buffer);
-
-                // We append/prepend alphabet characters to the result until we reach the minimum length
-                var FinalLength = ResultLength + Alphabet.Length;
-                // We may have more alphabet characters than we need. How many are excess?
-                var Excess = FinalLength - minimumHashLength;
-
-                int LeftChars, RightChars;
-
-                if (Excess > 0)
-                {
-                    // How many should we prepend?
-                    LeftChars = Alphabet.Length - HalfLength - Excess / 2;
-                    // How many should we append?
-                    RightChars = minimumHashLength - ResultLength - LeftChars;
-                }
-                else
-                {
-                    // No excess, so the alphabet is shorter than our minimum hash length. We'll end up looping and doing this again
-                    LeftChars = Alphabet.Length - HalfLength;
-                    RightChars = HalfLength;
-                }
-
-                // Prepend LeftChars from the end of the alphabet
-                if (LeftChars > 0)
-                {
-                    result.Slice(0, ResultLength).CopyTo(result.Slice(LeftChars));
-                    Alphabet.Slice(Alphabet.Length - LeftChars).CopyTo(result);
-                    ResultLength += LeftChars;
-                }
-
-                // Append RightChars from the start of the alphabet
-                if (RightChars > 0)
-                {
-                    Alphabet.Slice(0, RightChars).CopyTo(result.Slice(ResultLength));
-                    ResultLength += RightChars;
-                }
-            }
-
-            charsWritten = ResultLength;
-
-            return true;
-        }
-
-        private bool Hash(Span<char> output, ref int offset, long input, ReadOnlySpan<char> alphabet)
-        {
-            var StartOffset = offset;
-
-            do
-            {
-                if (offset == output.Length)
-                    return false;
-
-                input = Math.DivRem(input, alphabet.Length, out var Remainder);
-                output[offset++] = alphabet[(int)Remainder];
-            } while (input > 0);
-
-            // We wrote the hash backwards, so reverse it
-            output.Slice(StartOffset, offset - StartOffset).Reverse();
-
-            return true;
-        }
-    }
+			return InternalEncode(Numbers, result, out charsWritten);
+		}
+
+		// TryEncode span int
+
+		// TryEncode span uint
+
+		public bool TryEncode(ReadOnlySpan<long> numbers, Span<char> result, out int charsWritten) => TryEncode(MemoryMarshal.Cast<long, ulong>(numbers), result, out charsWritten);
+
+		public bool TryEncode(ReadOnlySpan<ulong> numbers, Span<char> result, out int charsWritten)
+		{
+			// If there's no numbers, we don't write anything
+			if (numbers.IsEmpty)
+			{
+				charsWritten = 0;
+
+				return true;
+			}
+
+			return InternalEncode(numbers, result, out charsWritten);
+		}
+
+		private bool InternalEncode(ReadOnlySpan<ulong> numbers, Span<char> result, out int charsWritten)
+		{
+			charsWritten = 0;
+
+			// Ensure there's space for the lottery and minimum size
+			if (result.IsEmpty || result.Length < minimumHashLength)
+				return false;
+
+			var ResultLength = 0;
+
+			// Copy the alphabet to a buffer we can shuffle around
+			Span<char> Alphabet = stackalloc char[alphabet.Length];
+			alphabet.Span.CopyTo(Alphabet);
+
+			// Generate a hash to use for the rest of the calculation
+			var NumbersHash = 0UL;
+
+			for (var Index = 0; Index < numbers.Length; Index++)
+				NumbersHash += numbers[Index] % (ulong)(Index + 100);
+
+			var Lottery = Alphabet[(int)(NumbersHash % (ulong)Alphabet.Length)];
+			result[ResultLength++] = Lottery;
+
+			// Generate the buffer we use to shuffle the alphabet with
+			// Each iteration, we replace the end of it with the current alphabet
+			// We only need it to be the same length as the Alphabet though
+			Span<char> Buffer = stackalloc char[Alphabet.Length];
+			Buffer[0] = Lottery;
+			salt.Span.Slice(0, Math.Min(Alphabet.Length - 1, salt.Length)).CopyTo(Buffer.Slice(1));
+
+			for (var Index = 0; Index < numbers.Length; Index++)
+			{
+				var Number = numbers[Index];
+
+				// Fill the remainder of the shuffle buffer with the current alphabet
+				if (salt.Length + 1 < Alphabet.Length)
+					Alphabet.Slice(0, Alphabet.Length - salt.Length - 1).CopyTo(Buffer.Slice(salt.Length + 1));
+
+				ConsistentShuffle(Alphabet, Buffer);
+
+				var StartOffset = ResultLength;
+
+				if (!Hash(result, ref ResultLength, Number, Alphabet))
+					return false;
+
+				// If we're not the last item, add a separator
+				if (Index + 1 < numbers.Length)
+				{
+					if (result.Length == ResultLength)
+						return false;
+
+					var SeparatorIndex = (int)(Number % (ulong)(result[StartOffset] + Index)) % separators.Length;
+
+					result[ResultLength++] = separators.Span[SeparatorIndex];
+				}
+			}
+
+			if (ResultLength < minimumHashLength)
+			{
+				if (result.Length == ResultLength)
+					return false;
+
+				var GuardIndex = (int)(NumbersHash + result[0]) % guards.Length;
+				var Guard = guards.Span[GuardIndex];
+
+				// Move the result up, since we need to prepend a guard value
+				result.Slice(0, ResultLength).CopyTo(result.Slice(1));
+				result[0] = Guard;
+				ResultLength++;
+
+				if (ResultLength < minimumHashLength)
+				{
+					if (result.Length == ResultLength)
+						return false;
+
+					GuardIndex = (int)(NumbersHash + result[2]) % guards.Length;
+					Guard = guards.Span[GuardIndex];
+
+					result[ResultLength++] = Guard;
+				}
+			}
+
+			var HalfLength = Alphabet.Length / 2;
+
+			// No need for bounds checks here, since we know we have Minimum Hash Length in the output buffer
+			while (ResultLength < minimumHashLength)
+			{
+				// We're doing an in-place shuffle, so we need to copy the Alphabet first
+				Alphabet.CopyTo(Buffer);
+				ConsistentShuffle(Alphabet, Buffer);
+
+				// We append/prepend alphabet characters to the result until we reach the minimum length
+				var FinalLength = ResultLength + Alphabet.Length;
+				// We may have more alphabet characters than we need. How many are excess?
+				var Excess = FinalLength - minimumHashLength;
+
+				int LeftChars, RightChars;
+
+				if (Excess > 0)
+				{
+					// How many should we prepend?
+					LeftChars = Alphabet.Length - HalfLength - Excess / 2;
+					// How many should we append?
+					RightChars = minimumHashLength - ResultLength - LeftChars;
+				}
+				else
+				{
+					// No excess, so the alphabet is shorter than our minimum hash length. We'll end up looping and doing this again
+					LeftChars = Alphabet.Length - HalfLength;
+					RightChars = HalfLength;
+				}
+
+				// Prepend LeftChars from the end of the alphabet
+				if (LeftChars > 0)
+				{
+					result.Slice(0, ResultLength).CopyTo(result.Slice(LeftChars));
+					Alphabet.Slice(Alphabet.Length - LeftChars).CopyTo(result);
+					ResultLength += LeftChars;
+				}
+
+				// Append RightChars from the start of the alphabet
+				if (RightChars > 0)
+				{
+					Alphabet.Slice(0, RightChars).CopyTo(result.Slice(ResultLength));
+					ResultLength += RightChars;
+				}
+			}
+
+			charsWritten = ResultLength;
+
+			return true;
+		}
+
+		private bool Hash(Span<char> output, ref int offset, ulong input, ReadOnlySpan<char> alphabet)
+		{
+			var StartOffset = offset;
+			var Length = (ulong)alphabet.Length;
+
+			do
+			{
+				if (offset == output.Length)
+					return false;
+
+				// TODO: Use the ulong DivRem override when available in .Net 6.0
+				// input = Math.DivRem(input, Length, out var Remainder);
+				//output[offset++] = alphabet[(int)Remainder];
+				var Remainder = (int)(input % Length);
+				input /= Length;
+
+				output[offset++] = alphabet[Remainder];
+			} while (input > 0);
+
+			// We wrote the hash backwards, so reverse it
+			output.Slice(StartOffset, offset - StartOffset).Reverse();
+
+			return true;
+		}
+	}
 }

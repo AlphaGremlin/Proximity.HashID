@@ -4,134 +4,144 @@ using NUnit.Framework;
 
 namespace Proximity.HashID.Tests
 {
-    [TestFixture]
-    public class DecodeTests : TestsBase
-    {
-        [TestCase("NkK9", 12345)]
-        [TestCase("5O8yp5P", 666555444)]
-        [TestCase("Wzo", 1337)]
-        [TestCase("DbE", 808)]
-        [TestCase("yj8", 303)]
-        public void DecodeSingleInt32(string input, int expected)
-        {
-            using var Service = new HashIDService(salt);
+	[TestFixture]
+	public class DecodeTests : TestsBase
+	{
+		[TestCase("NkK9", 12345)]
+		[TestCase("5O8yp5P", 666555444)]
+		[TestCase("Wzo", 1337)]
+		[TestCase("DbE", 808)]
+		[TestCase("yj8", 303)]
+		public void DecodeSingleInt32(string input, int expected)
+		{
+			using var Service = new HashIDService(salt);
 
-            Assert.AreEqual(expected, Service.DecodeSingleInt32(input));
-        }
+			Assert.AreEqual(expected, Service.DecodeSingleInt32(input));
+		}
 
-        [TestCase("NkK9", 12345)]
-        [TestCase("5O8yp5P", 666555444)]
-        [TestCase("Wzo", 1337)]
-        [TestCase("DbE", 808)]
-        [TestCase("yj8", 303)]
-        public void TryDecodeSingleInt32(string input, int expected)
-        {
-            using var Service = new HashIDService(salt);
+		[TestCase("K4", 22u)]
+		[TestCase("5O8yp5P", 666555444u)]
+		[TestCase("j4r6j8Y", uint.MaxValue)]
+		public void DecodeSingleUInt32(string input, uint expected)
+		{
+			using var Service = new HashIDService(salt);
 
-            Assert.IsTrue(Service.TryDecodeSingleInt32(input, out var Value));
+			Assert.AreEqual(expected, Service.DecodeSingleUInt32(input));
+		}
 
-            Assert.AreEqual(expected, Value);
-        }
+		[TestCase("NkK9", 12345)]
+		[TestCase("5O8yp5P", 666555444)]
+		[TestCase("Wzo", 1337)]
+		[TestCase("DbE", 808)]
+		[TestCase("yj8", 303)]
+		public void TryDecodeSingleInt32(string input, int expected)
+		{
+			using var Service = new HashIDService(salt);
 
-        [TestCase("NV", 1L)]
-        [TestCase("21OjjRK", 2147483648L)]
-        [TestCase("D54yen6", 4294967296L)]
-        [TestCase("KVO9yy1oO5j", 666555444333222L)]
-        [TestCase("4bNP1L26r", 12345678901112L)]
-        [TestCase("jvNx4BjM5KYjv", long.MaxValue)]
-        public void DecodeSingleInt64(string input, long expected)
-        {
-            using var Service = new HashIDService(salt);
+			Assert.IsTrue(Service.TryDecodeSingleInt32(input, out var Value));
 
-            Assert.AreEqual(expected, Service.DecodeSingleInt64(input));
-        }
+			Assert.AreEqual(expected, Value);
+		}
 
-        [TestCase("NV", 1L)]
-        [TestCase("21OjjRK", 2147483648L)]
-        [TestCase("D54yen6", 4294967296L)]
-        [TestCase("KVO9yy1oO5j", 666555444333222L)]
-        [TestCase("4bNP1L26r", 12345678901112L)]
-        [TestCase("jvNx4BjM5KYjv", long.MaxValue)]
-        public void TryDecodeSingleInt64(string input, long expected)
-        {
-            using var Service = new HashIDService(salt);
+		[TestCase("NV", 1L)]
+		[TestCase("21OjjRK", 2147483648L)]
+		[TestCase("D54yen6", 4294967296L)]
+		[TestCase("KVO9yy1oO5j", 666555444333222L)]
+		[TestCase("4bNP1L26r", 12345678901112L)]
+		[TestCase("jvNx4BjM5KYjv", long.MaxValue)]
+		public void DecodeSingleInt64(string input, long expected)
+		{
+			using var Service = new HashIDService(salt);
 
-            Assert.IsTrue(Service.TryDecodeSingleInt64(input, out var Value));
+			Assert.AreEqual(expected, Service.DecodeSingleInt64(input));
+		}
 
-            Assert.AreEqual(expected, Value);
-        }
+		[TestCase("NV", 1L)]
+		[TestCase("21OjjRK", 2147483648L)]
+		[TestCase("D54yen6", 4294967296L)]
+		[TestCase("KVO9yy1oO5j", 666555444333222L)]
+		[TestCase("4bNP1L26r", 12345678901112L)]
+		[TestCase("jvNx4BjM5KYjv", long.MaxValue)]
+		public void TryDecodeSingleInt64(string input, long expected)
+		{
+			using var Service = new HashIDService(salt);
 
-        [TestCase("1gRYUwKxBgiVuX", new [] { 66655, 5444333, 2, 22 })]
-        [TestCase("aBMswoO2UB3Sj", new [] { 683, 94108, 123, 5 })]
-        [TestCase("jYhp", new [] { 3, 4 })]
-        [TestCase("k9Ib", new [] { 6, 5 })]
-        [TestCase("EMhN", new [] { 31, 41 })]
-        [TestCase("glSgV", new[] { 13, 89 })]
-        public void DecodeInt32(string input, int[] expected)
-        {
-            using var Service = new HashIDService(salt);
+			Assert.IsTrue(Service.TryDecodeSingleInt64(input, out var Value));
 
-            CollectionAssert.AreEqual(expected, Service.DecodeInt32(input));
-        }
+			Assert.AreEqual(expected, Value);
+		}
 
-        [TestCase("mPVbjj7yVMzCJL215n69", new[] { 666555444333222L, 12345678901112L })]
-        public void DecodeInt64(string input, long[] expected)
-        {
-            using var Service = new HashIDService(salt);
+		[TestCase("1gRYUwKxBgiVuX", new[] { 66655, 5444333, 2, 22 })]
+		[TestCase("aBMswoO2UB3Sj", new[] { 683, 94108, 123, 5 })]
+		[TestCase("jYhp", new[] { 3, 4 })]
+		[TestCase("k9Ib", new[] { 6, 5 })]
+		[TestCase("EMhN", new[] { 31, 41 })]
+		[TestCase("glSgV", new[] { 13, 89 })]
+		public void DecodeInt32(string input, int[] expected)
+		{
+			using var Service = new HashIDService(salt);
 
-            CollectionAssert.AreEqual(expected, Service.DecodeInt64(input));
-        }
+			CollectionAssert.AreEqual(expected, Service.DecodeInt32(input));
+		}
 
-        [TestCase("mPVbjj7yVMzCJL215n69", new[] { 666555444333222L, 12345678901112L })]
-        public void TryDecodeInt64(string input, long[] expected)
-        {
-            using var Service = new HashIDService(salt);
+		[TestCase("mPVbjj7yVMzCJL215n69", new[] { 666555444333222L, 12345678901112L })]
+		public void DecodeInt64(string input, long[] expected)
+		{
+			using var Service = new HashIDService(salt);
 
-            Assert.IsTrue(Service.TryDecode(input, out var Value));
+			CollectionAssert.AreEqual(expected, Service.DecodeInt64(input));
+		}
 
-            CollectionAssert.AreEqual(expected, Value);
-        }
+		[TestCase("mPVbjj7yVMzCJL215n69", new[] { 666555444333222L, 12345678901112L })]
+		public void TryDecodeInt64(string input, long[] expected)
+		{
+			using var Service = new HashIDService(salt);
 
-        [TestCase("mPVbjj7yVMzCJL215n69", new[] { 666555444333222L, 12345678901112L })]
-        public void TryDecodeInt64Span(string input, long[] expected)
-        {
-            using var Service = new HashIDService(salt);
+			Assert.IsTrue(Service.TryDecode(input, out var Value));
 
-            var Values = new long[expected.Length];
+			CollectionAssert.AreEqual(expected, Value);
+		}
 
-            Assert.IsTrue(Service.TryDecode(input.AsSpan(), Values, out var ValuesWritten));
+		[TestCase("mPVbjj7yVMzCJL215n69", new[] { 666555444333222L, 12345678901112L })]
+		public void TryDecodeInt64Span(string input, long[] expected)
+		{
+			using var Service = new HashIDService(salt);
 
-            Assert.AreEqual(expected.Length, ValuesWritten);
+			var Values = new long[expected.Length];
 
-            CollectionAssert.AreEqual(expected, Values);
-        }
+			Assert.IsTrue(Service.TryDecode(input.AsSpan(), Values, out var ValuesWritten));
 
-        [Test]
-        public void DecodeIncorrectSalt()
-        {
-            using (var Service = new HashIDService(salt))
-                Assert.AreEqual(12345, Service.DecodeSingleInt32("NkK9"));
+			Assert.AreEqual(expected.Length, ValuesWritten);
 
-            using (var Service = new HashIDService("this is my pepper"))
-                Assert.AreEqual(0, Service.DecodeSingleInt32("NkK9"));
-        }
+			CollectionAssert.AreEqual(expected, Values);
+		}
 
-        [TestCase("gB0NV05e", new [] {1})]
-        [TestCase("mxi8XH87", new[] { 25, 100, 950 })]
-        [TestCase("KQcmkIW8hX", new[] { 5, 200, 195, 1 })]
-        public void DecodeWithMinimumLength(string input, int[] expected)
-        {
-            using var Service = new HashIDService(salt, minimumHashLength: 8);
+		[Test]
+		public void DecodeIncorrectSalt()
+		{
+			using (var Service = new HashIDService(salt))
+				Assert.AreEqual(12345, Service.DecodeSingleInt32("NkK9"));
 
-            CollectionAssert.AreEqual(expected, Service.DecodeInt32(input));
-        }
+			using (var Service = new HashIDService("this is my pepper"))
+				Assert.AreEqual(0, Service.DecodeSingleInt32("NkK9"));
+		}
 
-        [TestCase("8Bmnwjbq1", new byte [] { 0x1d, 0x7f, 0x21, 0xdd, 0x38 })]
-        public void DecodeBinary(string input, byte[] expected)
-        {
-            using var Service = new HashIDService(salt);
-            
-            CollectionAssert.AreEqual(expected, Service.DecodeBinary(input));
-        }
-    }
+		[TestCase("gB0NV05e", new[] { 1 })]
+		[TestCase("mxi8XH87", new[] { 25, 100, 950 })]
+		[TestCase("KQcmkIW8hX", new[] { 5, 200, 195, 1 })]
+		public void DecodeWithMinimumLength(string input, int[] expected)
+		{
+			using var Service = new HashIDService(salt, minimumHashLength: 8);
+
+			CollectionAssert.AreEqual(expected, Service.DecodeInt32(input));
+		}
+
+		[TestCase("DZaK2yDZ", new byte[] { 0x1d, 0x7f, 0x21, 0xdd, 0x38 })]
+		public void DecodeBinary(string input, byte[] expected)
+		{
+			using var Service = new HashIDService(salt);
+
+			CollectionAssert.AreEqual(expected, Service.DecodeBinary(input));
+		}
+	}
 }

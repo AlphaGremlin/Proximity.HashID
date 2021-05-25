@@ -47,7 +47,7 @@ using Proximity.HashID;
 using var Service = new HashIDService("this is my salt");
 ```
 
-The `HashIDService` implements `IDisposable`, as it rents some buffers from the `ArrayPool`.
+The `HashIDService` implements `IDisposable` as it rents some buffers from the `ArrayPool`.
 
 ### Encoding a single integer
 
@@ -57,13 +57,17 @@ A value can be encoded in several ways, depending on your requirements. Here, we
 var Hash = Service.Encode(12345);
 ```
 
-This results in the hash: "**NkK9**". We also support `Int64` values:
+This results in the hash: "**NkK9**". We also support `UInt32`, `Int64`, and `UInt64` values:
 
 ```C#
 var Hash = Service.Encode(666555444333222L);
 ```
 
 This results in the hash "**KVO9yy1oO5j**".
+
+### Encoding multiple integers
+
+
 
 ### Encoding without allocations
 
@@ -77,7 +81,7 @@ Service.TryEncode(123000, Buffer, out var CharsWritten);
 var Hash = Buffer.Slice(0, CharsWritten);
 ```
 
-This results in the characters "**58LzD**" being written into `Buffer`, with the value **5** in `CharsWritten`. We then generate a `Span<Char>` encompassing the Hash ID. No memory allocations were performed.
+This results in the characters "**58LzD**" being written into `Buffer`, with the value **5** in `CharsWritten`. We then generate a `Span<Char>` encompassing the Hash ID. No memory allocations are performed.
 
 We also offer methods that take span inputs too:
 
@@ -92,11 +96,11 @@ var Hash = Output.Slice(0, CharsWritten);
 
 Here, the C# compiler recognises that Input is a span, and allocates it on the stack.
 
-This results in `Hash` referencing a Span containing "**laHquq**". Again, no memory allocations were performed.
+This results in `Hash` referencing a Span containing "**laHquq**". Again, no memory allocations are performed.
 
 ### Encoding buffer sizes
 
-If your output buffer isn't large enough, `TryEncode` methods will return **false**. Rather than guess at the maximum size of a Hash ID, you can call `MeasureEncode` to calculate it.
+If your output buffer isn't large enough, `TryEncode` methods will return **false**. Rather than guess at the maximum size of a Hash ID, you can call `MeasureEncode` to calculate the maximum size.
 
 ```C#
 var MaxLength = Service.MeasureEncode(Input.Length);
@@ -123,7 +127,29 @@ Here we encode the hexadecimal string and result in the hash "**4o6Z7KqxE**"
 The second encoding is a more efficient pure-binary encoding:
 
 ```C#
-var Hash = Service.Encode(new [] { (byte)0x1d, (byte)0x7f, (byte)0x21, (byte)0xdd, (byte)0x38 });
+var Hash = Service.Encode(new byte [] { 0x1d, 0x7f, 0x21, 0xdd, 0x38 });
 ```
 
+### Decoding a single integer
 
+Decoding is done in a similar fashion to encoding. Here, we expect a single `Int32`:
+
+```C#
+var Value = Service.DecodeSingleInt32("NkK9");
+```
+
+This results in the value: **12345**. We also support `UInt32`, `Int64`, and `UInt64` values:
+
+```C#
+var Value = Service.DecodeSingleInt64("KVO9yy1oO5j");
+```
+
+This results in the value **666555444333222L**.
+
+### Decoding multiple integers
+
+### Decoding without allocations
+
+### Decoding buffer sizes
+
+### Decoding binary values
