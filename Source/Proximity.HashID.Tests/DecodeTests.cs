@@ -143,5 +143,13 @@ namespace Proximity.HashID.Tests
 
 			CollectionAssert.AreEqual(expected, Service.DecodeBinary(input));
 		}
+
+		[TestCase("aBMswoO2UB3Sj", 4)]
+		public void MeasureDecode(string input, int expected)
+		{
+			using var Service = new HashIDService(salt);
+
+			Assert.AreEqual(expected, Service.MeasureDecode(input));
+		}
 	}
 }

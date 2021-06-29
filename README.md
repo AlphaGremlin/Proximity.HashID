@@ -21,7 +21,7 @@ The Hash ID algorithm attempts to fulfil the following requirements:
 
 This library is designed to efficiently encode and decode Hash IDs.
 
-1. Supports 32 and 64-bit integer inputs.
+1. Supports 32 and 64-bit integer inputs, both signed and unsigned.
 2. Supports hexadecimal string and raw binary inputs.
 3. Supports span-based inputs and outputs, allowing zero-allocation operations.
 4. Supports .Net 4.5, and .Net Standard 2.0 and 2.1.
@@ -33,7 +33,15 @@ Due to the Span-based implementation, this makes our minimum requirements the sa
 
 The library can be installed with NuGet:
 
-    Install-Package Proximity.HashID
+```
+Install-Package Proximity.HashID
+```
+
+or
+
+```
+dotnet add package Proximity.HashID
+```
 
 ## How do I use it?
 
@@ -47,7 +55,7 @@ using Proximity.HashID;
 using var Service = new HashIDService("this is my salt");
 ```
 
-The `HashIDService` implements `IDisposable` as it rents some buffers from the `ArrayPool`.
+The `HashIDService` implements `IDisposable` as it rents some buffers from the `ArrayPool`. It also performs some pre-calculations, so we recommend creating the `HashIDService` once and reusing it.
 
 ### Encoding a single integer
 
@@ -67,11 +75,21 @@ This results in the hash "**KVO9yy1oO5j**".
 
 ### Encoding multiple integers
 
+Multiple values can be encoded into the same hash.
 
+```C#
+var Hash = Service.Encode(99, 25);
+```
+
+This results in the hash: "**97Jun**". We also support spans:
+
+```C#
+var Hash = Service.Encode(new [] { 1, 2, 3 }.AsSpan())
+```
 
 ### Encoding without allocations
 
-To reduce load on the garbage collector, we want to minimise or eliminate as many allocations as possible. Here, we pass an `Int32` and store it into a `Span<Char>`:
+To reduce load on the garbage collector, we want to minimise or eliminate as many allocations as possible. Here, we pass an `Int32` and store it directly into a `Span<Char>`:
 
 ```C#
 Span<char> Buffer = stackalloc char[16];
@@ -124,7 +142,7 @@ var Hash = Service.EncodeHex("1d7f21dd38");
 
 Here we encode the hexadecimal string and result in the hash "**4o6Z7KqxE**"
 
-The second encoding is a more efficient pure-binary encoding:
+The second encoding is a slightly more efficient pure-binary encoding, which is compatible with EncodeHex for smaller values:
 
 ```C#
 var Hash = Service.Encode(new byte [] { 0x1d, 0x7f, 0x21, 0xdd, 0x38 });
@@ -148,8 +166,79 @@ This results in the value **666555444333222L**.
 
 ### Decoding multiple integers
 
+Decoding can be performed into a number of array sizes:
+
+```C#
+var Value = Service.DecodeInt32("glSgV");
+```
+
+This results in an int array containing: **13**, **89**. We also support `UInt32`, `Int64`, and `UInt64` values:
+
+```C#
+var Value = Service.DecodeInt64("mPVbjj7yVMzCJL215n69");
+```
+
+This results in a long array containing: **666555444333222**, **12345678901112**.
+
 ### Decoding without allocations
+
+We also support allocation-free decoding. Here, we pass a `ReadOnlySpan<char>` and store it directly into an Int32:
+
+```C#
+ReadOnlySpan<string> Input = "aBMswoO2UB3Sj";
+Span<int> Output = stackalloc int[16];
+
+Service.TryDecode(Input, Output, out var ValuesWritten);
+
+var Value = Output.Slice(0, ValuesWritten);
+```
+
+This results in the array **683**, **94108**, **123**, **5** being written into `Output`, with **4** being stored into `ValuesWritten`.
 
 ### Decoding buffer sizes
 
+We can quickly calculate the array size required to decode a hash using `MeasureDecode`:
+
+```C#
+var Length = Service.MeasureDecode("aBMswoO2UB3Sj");
+```
+
+We also support measuring of binary and hex string values, which return the maximum possible output size.
+
+```C#
+var Length = Service.MeasureDecodeHex("D9NPE");
+```
+
+Here, we receive the result of **12** as the maximum character buffer required.
+
+```C#
+var Length = Service.MeasureDecodeBinary("4o6Z7KqxE");
+```
+
+Here, we receive the result of **8** as the maximum byte buffer required.
+
 ### Decoding binary values
+
+Decoding of binary occurs in two different formats. The first is hex-string encoding, compatible with Hashids.net.
+
+```C#
+var Hash = Service.EncodeHex("1d7f21dd38");
+```
+
+Here we encode the hexadecimal string and result in the hash "**4o6Z7KqxE**"
+
+The second encoding is a slightly more efficient pure-binary encoding, which is compatible with EncodeHex for smaller values:
+
+```C#
+var Hash = Service.Encode(new byte [] { 0x1d, 0x7f, 0x21, 0xdd, 0x38 });
+```
+
+## Performance
+
+This Hash ID library places an emphasis on performance and low garbage collection.
+
+1. Stack allocated buffers are used rather than allocating small arrays for processing single numbers.
+2. The only methods that perform allocations (excepting `ArrayPool` allocations) are ones that return `string` or array values.
+3. Span-based methods are used internally, enabling the latest runtime performance improvements.
+4. Minimal buffer copies result in less wasted CPU time.
+

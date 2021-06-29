@@ -15,10 +15,13 @@ namespace Proximity.HashID
 		private const string DefaultSeparators = "cfhistuCFHISTU";
 		private const int GuardDivisor = 12;
 		private const int MinimumAlphabetLength = 4;
+		private const int MaxStackBytes = 1024;
 
 		private readonly ReadOnlyMemory<char> salt, alphabet, separators, guards;
 		private readonly char[] backingBuffer;
+		private readonly uint[] probabilityBuffer;
 		private readonly int minimumHashLength, maximumSegmentLength, maximumHexSegmentLength;
+		private readonly FastIndexOfAny separatorMap, guardMap;
 
 		/// <summary>
 		/// Creates a new unsalted HashID service
@@ -33,7 +36,7 @@ namespace Proximity.HashID
 		/// <param name="separators">The separators to use for HashID values. Characters must be included in the <paramref name="alphabet" />.</param>
 		/// <param name="minimumHashLength">The minimum length of generated hashses. Shorter values will be padded accordingly.</param>
 		/// <remarks>This constructor is designed to mimic HashIds.Net and will perform allocations. For zero-allocations, use the ReadOnlySpan-based constructor.</remarks>
-		public HashIDService(string? salt, string? alphabet = DefaultStringAlphabet, string? separators = DefaultSeparators, int minimumHashLength = 0) : this(salt.AsSpan(), alphabet.Distinct().Except(separators).ToArray(), separators.Intersect(alphabet).ToArray(), minimumHashLength)
+		public HashIDService(string? salt, string? alphabet = DefaultStringAlphabet, string? separators = DefaultSeparators, int minimumHashLength = 0) : this(salt.AsSpan(), alphabet?.Distinct().Except(separators).ToArray(), separators.Intersect(alphabet).ToArray(), minimumHashLength)
 		{
 			// Hashids.Net uses the following rules for alphabet and separators:
 			// Final Alphabet = Alphabet Except Separators
@@ -59,13 +62,13 @@ namespace Proximity.HashID
 			if (alphabet.Length < MinimumAlphabetLength)
 				throw new ArgumentOutOfRangeException(nameof(alphabet), $"Must have at least {MinimumAlphabetLength} characters in the alphabet");
 
-			var Pool = ArrayPool<char>.Shared;
 			var Valid = false;
 
 			try
 			{
 				// Copy the input values to a buffer we can manipulate and keep for later.
-				backingBuffer = Pool.Rent(salt.Length + alphabet.Length + separators.Length);
+				backingBuffer = ArrayPool<char>.Shared.Rent(salt.Length + alphabet.Length + separators.Length);
+				probabilityBuffer = ArrayPool<uint>.Shared.Rent(FastIndexOfAny.Length * 2);
 
 				// Separators go first, so we can append values from the start of the alphabet. Salt goes at the end.
 				var Separators = backingBuffer.AsMemory(0, separators.Length);
@@ -147,14 +150,18 @@ namespace Proximity.HashID
 					Alphabet = Alphabet.Slice(GuardCount);
 				}
 
+				// Calculate our IndexOfAny tables for fast lookups
+				separatorMap = new FastIndexOfAny(Separators, probabilityBuffer.AsMemory(0, FastIndexOfAny.Length));
+				guardMap = new FastIndexOfAny(Guards, probabilityBuffer.AsMemory(FastIndexOfAny.Length, FastIndexOfAny.Length));
+
 				// Ready to go
 				this.salt = Salt;
 				this.alphabet = Alphabet;
 				this.separators = Separators;
 				this.guards = Guards;
 				this.minimumHashLength = minimumHashLength;
-				this.maximumSegmentLength = MeasureHash(long.MaxValue, Alphabet.Length);
-				this.maximumHexSegmentLength = MeasureHash(0x1FFFFFFFFFFFF, Alphabet.Length);
+				this.maximumSegmentLength = MeasureHash(ulong.MaxValue, (uint)Alphabet.Length);
+				this.maximumHexSegmentLength = MeasureHash(0x1FFFFFFFFFFFF, (uint)Alphabet.Length);
 
 				Console.WriteLine("Salt: {0}", this.salt.ToString());
 				Console.WriteLine("Alphabet: {0}", this.alphabet.ToString());
@@ -168,7 +175,10 @@ namespace Proximity.HashID
 				if (!Valid)
 				{
 					if (backingBuffer != null)
-						Pool.Return(backingBuffer);
+						ArrayPool<char>.Shared.Return(backingBuffer);
+
+					if (probabilityBuffer != null)
+						ArrayPool<uint>.Shared.Return(probabilityBuffer);
 				}
 			}
 		}
@@ -177,7 +187,23 @@ namespace Proximity.HashID
 		public void Dispose()
 		{
 			ArrayPool<char>.Shared.Return(backingBuffer);
+			ArrayPool<uint>.Shared.Return(probabilityBuffer);
 		}
+
+		/// <summary>
+		/// Gets the complete alphabet of characters being used
+		/// </summary>
+		public ReadOnlyMemory<char> Alphabet => backingBuffer.AsMemory(0, salt.Length + alphabet.Length + separators.Length + guards.Length);
+
+		/// <summary>
+		/// Gets the alphabet being used for encoding values
+		/// </summary>
+		public ReadOnlyMemory<char> EncodingAlphabet => alphabet;
+
+		/// <summary>
+		/// Gets the alphabet being used for separating values
+		/// </summary>
+		public ReadOnlyMemory<char> SeparatorAlphabet => separators;
 
 		private void ConsistentShuffle(Span<char> target, ReadOnlySpan<char> salt)
 		{
@@ -195,7 +221,7 @@ namespace Proximity.HashID
 			}
 		}
 
-		private int MeasureHash(long input, int alphabetLength)
+		private int MeasureHash(ulong input, uint alphabetLength)
 		{
 			var Length = 0;
 

@@ -59,5 +59,16 @@ namespace Proximity.HashID.Tests
 
 			CollectionAssert.AreEqual(values, Decoded);
 		}
+
+		[TestCase("D9NPE", 8)]
+		[TestCase("18ZEyDa1z59w6", 8)]
+		[TestCase("ZxLWwLgazBW9kuMy", 16)]
+		[TestCase("ZxLWwLgDkM2KKtMj5eWeJVa", 16)]
+		public void MeasureDecodeBinary(string input, int expected)
+		{
+			using var Service = new HashIDService(salt);
+
+			Assert.AreEqual(expected, Service.MeasureDecodeBinary(input));
+		}
 	}
 }

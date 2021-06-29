@@ -37,6 +37,5 @@ namespace Proximity.HashID
 
             return Offset;
         }
-
     }
 }
