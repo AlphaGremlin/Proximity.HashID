@@ -4,12 +4,16 @@
     <TargetFrameworks>netstandard2.0;netstandard2.1;net5.0</TargetFrameworks>
 		<Authors>Daniel Chandler</Authors>
 		<Company>Proximity Interactive</Company>
-		<Copyright>Copyright © Daniel Chandler 2021</Copyright>
+		<Copyright>Copyright © Daniel Chandler 2022</Copyright>
 		<Product>Proximity HashID Library</Product>
 		<Description>HashID Library</Description>
 		<Nullable>enable</Nullable>
 		<LangVersion>Latest</LangVersion>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<Version>1.0.1</Version>
+		<PackageProjectUrl>https://github.com/AlphaGremlin/Proximity.HashID</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/AlphaGremlin/Proximity.HashID.git</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' != 'net5.0'">

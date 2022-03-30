@@ -11,7 +11,7 @@ namespace Proximity.HashID
 	public partial class HashIDService : IHashIDService, IDisposable
 	{
 		private const string DefaultStringAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
-		private const string DefaultAlphabet = "abdegjklmnopqrvwxyzABDEGJKLMNOPQRVWXYZ1234567890";
+		private const string DefaultAlphabet =       "abdegjklmnopqrvwxyzABDEGJKLMNOPQRVWXYZ1234567890";
 		private const string DefaultSeparators = "cfhistuCFHISTU";
 		private const int GuardDivisor = 12;
 		private const int MinimumAlphabetLength = 4;
@@ -36,7 +36,12 @@ namespace Proximity.HashID
 		/// <param name="separators">The separators to use for HashID values. Characters must be included in the <paramref name="alphabet" />.</param>
 		/// <param name="minimumHashLength">The minimum length of generated hashses. Shorter values will be padded accordingly.</param>
 		/// <remarks>This constructor is designed to mimic HashIds.Net and will perform allocations. For zero-allocations, use the ReadOnlySpan-based constructor.</remarks>
-		public HashIDService(string? salt, string? alphabet = DefaultStringAlphabet, string? separators = DefaultSeparators, int minimumHashLength = 0) : this(salt.AsSpan(), alphabet?.Distinct().Except(separators).ToArray(), separators.Intersect(alphabet).ToArray(), minimumHashLength)
+		public HashIDService(string? salt, string? alphabet = DefaultAlphabet, string? separators = DefaultSeparators, int minimumHashLength = 0) : this(
+			salt.AsSpan(),
+			(alphabet ?? DefaultAlphabet).Distinct().Except(separators ?? DefaultSeparators).ToArray(),
+			(separators ?? DefaultSeparators).Intersect(alphabet ?? DefaultAlphabet).ToArray(),
+			minimumHashLength
+			)
 		{
 			// Hashids.Net uses the following rules for alphabet and separators:
 			// Final Alphabet = Alphabet Except Separators
@@ -163,10 +168,10 @@ namespace Proximity.HashID
 				this.maximumSegmentLength = MeasureHash(ulong.MaxValue, (uint)Alphabet.Length);
 				this.maximumHexSegmentLength = MeasureHash(0x1FFFFFFFFFFFF, (uint)Alphabet.Length);
 
-				Console.WriteLine("Salt: {0}", this.salt.ToString());
-				Console.WriteLine("Alphabet: {0}", this.alphabet.ToString());
-				Console.WriteLine("Separators: {0}", this.separators.ToString());
-				Console.WriteLine("Guards: {0}", this.guards.ToString());
+				//Console.WriteLine("Salt: {0}", this.salt.ToString());
+				//Console.WriteLine("Alphabet: {0}", this.alphabet.ToString());
+				//Console.WriteLine("Separators: {0}", this.separators.ToString());
+				//Console.WriteLine("Guards: {0}", this.guards.ToString());
 
 				Valid = true;
 			}
@@ -204,6 +209,12 @@ namespace Proximity.HashID
 		/// Gets the alphabet being used for separating values
 		/// </summary>
 		public ReadOnlyMemory<char> SeparatorAlphabet => separators;
+
+		/// <summary>
+		/// Gets/Sets whether to verify decoded values. Defaults to True
+		/// </summary>
+		/// <remarks>Disable to improve decode performance at the cost of potentially incorrect HashIDs being successfully decoded</remarks>
+		public bool VerifyOnDecode { get; set; } = true;
 
 		private void ConsistentShuffle(Span<char> target, ReadOnlySpan<char> salt)
 		{

@@ -1,0 +1,26 @@
+BenchmarkDotNet=v0.12.1, OS=Windows 10.0.19042
+Intel Core i7-8700 CPU 3.20GHz (Coffee Lake), 1 CPU, 12 logical and 6 physical cores
+.NET Core SDK=5.0.404
+  [Host]     : .NET Core 5.0.13 (CoreCLR 5.0.1321.56516, CoreFX 5.0.1321.56516), X64 RyuJIT
+  DefaultJob : .NET Core 5.0.13 (CoreCLR 5.0.1321.56516, CoreFX 5.0.1321.56516), X64 RyuJIT
+
+
+|                 Method |     Mean |     Error |    StdDev |  Gen 0 | Gen 1 | Gen 2 | Allocated |
+|----------------------- |---------:|----------:|----------:|-------:|------:|------:|----------:|
+|          RoundtripInts | 4.128 us | 0.0130 us | 0.0122 us | 0.0153 |     - |     - |     104 B |
+|   RoundtripIntsNoAlloc | 4.039 us | 0.0263 us | 0.0246 us |      - |     - |     - |         - |
+|         RoundtripLongs | 4.680 us | 0.0211 us | 0.0187 us | 0.0153 |     - |     - |     136 B |
+|  RoundtripLongsNoAlloc | 4.334 us | 0.0178 us | 0.0167 us |      - |     - |     - |         - |
+|           RoundtripHex | 3.510 us | 0.0120 us | 0.0112 us | 0.0191 |     - |     - |     136 B |
+|    RoundtripHexNoAlloc | 3.302 us | 0.0098 us | 0.0091 us |      - |     - |     - |         - |
+|        RoundtripBinary | 3.606 us | 0.0182 us | 0.0171 us | 0.0114 |     - |     - |      72 B |
+| RoundtripBinaryNoAlloc | 3.374 us | 0.0117 us | 0.0109 us |      - |     - |     - |         - |
+
+Comparison to Hashids.Net under the same conditions:
+
+|         Method |     Mean |     Error |    StdDev |  Gen 0 | Gen 1 | Gen 2 | Allocated |  Diff |
+|--------------- |---------:|----------:|----------:|-------:|------:|------:|----------:|------:|
+|  RoundtripInts | 4.363 us | 0.0139 us | 0.0116 us | 0.0916 |     - |     - |     576 B |  5.4% |
+| RoundtripLongs | 4.921 us | 0.0159 us | 0.0141 us | 0.0916 |     - |     - |     576 B |  4.9% |
+|   RoundtripHex | 4.085 us | 0.0225 us | 0.0200 us | 0.2365 |     - |     - |    1512 B | 14.1% |
+

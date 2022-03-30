@@ -801,71 +801,74 @@ namespace Proximity.HashID
 					Hash = Hash.Slice(NextSeparator + 1);
 				}
 
-				// Now we validate the calculation by encoding it again
-				// If the salt used to decode is different from the salt used to encode, we will get a different output
-				/*
-				var TempHash = ArrayPool<char>.Shared.Rent(hash.Length);
-
-				try
+				if (VerifyOnDecode)
 				{
-					if (!InternalEncode(numbers.Slice(0, ResultLength), TempHash, out var EncodedChars) || !hash.SequenceEqual(TempHash.AsSpan(0, EncodedChars)))
-						return false;
-				}
-				finally
-				{
-					ArrayPool<char>.Shared.Return(TempHash);
-				}
-				*/
+					// Now we optionally validate the calculation by encoding it again
+					// If the salt used to decode is different from the salt used to encode, we will get a different output
+					/*
+					var TempHash = ArrayPool<char>.Shared.Rent(hash.Length);
 
-				// Including a reduced version of InternalEncode is faster than calling InternalEncode to generate the entire hash.
-				// This does skip validating any padding characters, but as long as the encoded numbers are correct,
-				// it doesn't really matter if the creating HashIDService used a different minimum length.
-				alphabet.Span.CopyTo(Alphabet);
-
-				var NumbersHash = 0;
-
-				for (var Index = 0; Index < ResultLength; Index++)
-					NumbersHash += (int)(numbers[Index] % (ulong)(Index + 100));
-
-				if (Alphabet[NumbersHash % Alphabet.Length] != Lottery)
-					return false;
-
-				// Reset the Shuffle for verification
-				Shuffle[0] = Lottery;
-				salt.Span.Slice(0, Math.Min(Alphabet.Length - 1, salt.Length)).CopyTo(Shuffle.Slice(1));
-
-				Span<char> TempBuffer = stackalloc char[maximumSegmentLength];
-
-				HashBody = HashBody.Slice(1);
-
-				for (var Index = 0; Index < ResultLength; Index++)
-				{
-					var Number = numbers[Index];
-
-					// Fill the remainder of the shuffle buffer with the current alphabet
-					SubAlphabet.CopyTo(SubShuffle);
-					ConsistentShuffle(Alphabet, Shuffle);
-
-					var SegmentLength = 0;
-
-					this.Hash(TempBuffer, ref SegmentLength, Number, Alphabet);
-
-					// Verify the segments are identical
-					if (!HashBody.Slice(0, SegmentLength).SequenceEqual(TempBuffer.Slice(0, SegmentLength)))
-						return false;
-
-					// If we're not the last item, add a separator
-					if (Index + 1 < ResultLength)
+					try
 					{
-						if (SegmentLength == HashBody.Length)
+						if (!InternalEncode(numbers.Slice(0, ResultLength), TempHash, out var EncodedChars) || !hash.SequenceEqual(TempHash.AsSpan(0, EncodedChars)))
+							return false;
+					}
+					finally
+					{
+						ArrayPool<char>.Shared.Return(TempHash);
+					}
+					*/
+
+					// Including a reduced version of InternalEncode is faster than calling InternalEncode to generate the entire hash.
+					// This does skip validating any padding characters, but as long as the encoded numbers are correct,
+					// it doesn't really matter if the creating HashIDService used a different minimum length - the results are still compatible.
+					alphabet.Span.CopyTo(Alphabet);
+
+					var NumbersHash = 0;
+
+					for (var Index = 0; Index < ResultLength; Index++)
+						NumbersHash += (int)(numbers[Index] % (ulong)(Index + 100));
+
+					if (Alphabet[NumbersHash % Alphabet.Length] != Lottery)
+						return false;
+
+					// Reset the Shuffle for verification
+					Shuffle[0] = Lottery;
+					salt.Span.Slice(0, Math.Min(Alphabet.Length - 1, salt.Length)).CopyTo(Shuffle.Slice(1));
+
+					Span<char> TempBuffer = stackalloc char[maximumSegmentLength];
+
+					HashBody = HashBody.Slice(1);
+
+					for (var Index = 0; Index < ResultLength; Index++)
+					{
+						var Number = numbers[Index];
+
+						// Fill the remainder of the shuffle buffer with the current alphabet
+						SubAlphabet.CopyTo(SubShuffle);
+						ConsistentShuffle(Alphabet, Shuffle);
+
+						var SegmentLength = 0;
+
+						this.Hash(TempBuffer, ref SegmentLength, Number, Alphabet);
+
+						// Verify the segments are identical
+						if (!HashBody.Slice(0, SegmentLength).SequenceEqual(TempBuffer.Slice(0, SegmentLength)))
 							return false;
 
-						var SeparatorIndex = (int)(Number % (ulong)(TempBuffer[0] + Index)) % separators.Length;
+						// If we're not the last item, add a separator
+						if (Index + 1 < ResultLength)
+						{
+							if (SegmentLength == HashBody.Length)
+								return false;
 
-						if (HashBody[SegmentLength] != separators.Span[SeparatorIndex])
-							return false;
+							var SeparatorIndex = (int)(Number % (ulong)(TempBuffer[0] + Index)) % separators.Length;
 
-						HashBody = HashBody.Slice(SegmentLength + 1);
+							if (HashBody[SegmentLength] != separators.Span[SeparatorIndex])
+								return false;
+
+							HashBody = HashBody.Slice(SegmentLength + 1);
+						}
 					}
 				}
 
